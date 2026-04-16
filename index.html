@@ -269,22 +269,26 @@ function saveDraft(){
 function clearDraft(){localStorage.removeItem(DK);document.getElementById('draft-pill').classList.remove('on');}
 
 function restoreDraft(){
+  setToday();
   try{
     const r=localStorage.getItem(DK);
-    if(!r){setToday();return;}
+    if(!r)return;
     const d=JSON.parse(r);
-    if(d.date){selDate=d.date;updateDateDisp();}else setToday();
     if(d.tstart){selTStart=d.tstart;updateTimeDisp('tstart');}
     if(d.tend){selTEnd=d.tend;updateTimeDisp('tend');}
     if(d.type){selType=d.type;updateTypeUI();}
     if(d.sev!==undefined){selSev=d.sev;updateSevUI();}
     if(d.detail)document.getElementById('inp-detail').value=d.detail;
-    if(d.detail||d.tstart||d.date){const p=document.getElementById('draft-pill');p.textContent='已恢复草稿';p.classList.add('on');draftTimer=setTimeout(()=>{p.classList.remove('on');p.textContent='草稿已保存';},3000);}
-  }catch(e){setToday();}
+    if(d.detail||d.tstart){const p=document.getElementById('draft-pill');p.textContent='已恢复草稿';p.classList.add('on');draftTimer=setTimeout(()=>{p.classList.remove('on');p.textContent='草稿已保存';},3000);}
+  }catch(e){}
 }
 
 function setToday(){
-  const t=new Date();selDate=t.toISOString().slice(0,10);updateDateDisp();
+  const t=new Date();
+  const y=t.getFullYear();
+  const m=String(t.getMonth()+1).padStart(2,'0');
+  const d=String(t.getDate()).padStart(2,'0');
+  selDate=y+'-'+m+'-'+d;updateDateDisp();
 }
 function updateDateDisp(){
   const d=new Date(selDate+'T12:00:00');
@@ -295,8 +299,11 @@ function updateTimeDisp(which){
   const val=which==='tstart'?selTStart:selTEnd;
   const el=document.getElementById('disp-'+which+'-txt');
   const btn=document.getElementById('disp-'+which);
-  if(val){el.textContent=val;btn.classList.remove('ph');}
-  else{el.textContent=which==='tstart'?'开始':'结束';btn.classList.add('ph');}
+  if(val){
+    let txt=val;
+    if(which==='tend'&&selTStart&&val&&val<=selTStart)txt='次日 '+val;
+    el.textContent=txt;btn.classList.remove('ph');
+  }else{el.textContent=which==='tstart'?'开始':'结束';btn.classList.add('ph');}
 }
 
 function selectType(t){selType=t;updateTypeUI();saveDraft();}
@@ -409,7 +416,7 @@ function renderLog(){
     const label=d.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'short'});
     return '<div class="day-block"><div class="day-head"><span class="day-date-label">'+label+'</span><span class="day-count">'+rows.length+'条</span></div>'+
     rows.map(e=>{
-      const timeStr=e.tstart?(e.tend?e.tstart+' → '+e.tend:e.tstart):'';
+      const nextDay=e.tstart&&e.tend&&e.tend<=e.tstart;const timeStr=e.tstart?(e.tend?e.tstart+' → '+(nextDay?'次日 ':'')+e.tend:e.tstart):'';
       return '<div class="swipe-wrapper"><div class="del-bg" onclick="deleteEntry('+e.id+')"><div class="del-bg-icon">✕</div><div class="del-bg-txt">删除</div></div>'+
       '<div class="entry-card" id="ec-'+e.id+'"><div class="entry-stripe '+TS[e.type]+'"></div><div class="entry-body"><div class="entry-top"><span class="badge '+TC[e.type]+'">'+TL[e.type]+'</span>'+(e.sev?'<span class="sev-tag '+SC[e.sev]+'">'+SL[e.sev]+'</span>':'')+(timeStr?'<span class="entry-time-txt">'+timeStr+'</span>':'')+'</div><div class="entry-detail'+(e.detail?'':' muted')+'">'+(e.detail?esc(e.detail):'无详情')+'</div></div><span class="entry-edit-icon">›</span></div></div>';
     }).join('')+'</div>';
@@ -483,12 +490,31 @@ function closePicker(confirm){
       const h=getColVal(pickerCols[0].col,pickerCols[0].items);
       const m=getColVal(pickerCols[1].col,pickerCols[1].items);
       const val=h?(h+':'+(m||'00')):'';
-      if(pickerMode==='tstart'){selTStart=val;updateTimeDisp('tstart');}
-      else{selTEnd=val;updateTimeDisp('tend');}
+      if(pickerMode==='tstart'){
+        selTStart=val;
+        updateTimeDisp('tstart');
+        // auto open tend with start time pre-set
+        if(val){
+          document.getElementById('picker-overlay').classList.remove('open');
+          saveDraft();
+          setTimeout(()=>openPicker('tend'),180);
+          return;
+        }
+      }else{
+        selTEnd=val;
+        updateTimeDisp('tend');
+        updateNextDayHint();
+      }
     }
     saveDraft();
   }
   document.getElementById('picker-overlay').classList.remove('open');
+}
+
+function updateNextDayHint(){
+  if(selTStart&&selTEnd&&selTEnd<=selTStart){
+    document.getElementById('disp-tend-txt').textContent='次日 '+selTEnd;
+  }
 }
 
 function renderStats(){
