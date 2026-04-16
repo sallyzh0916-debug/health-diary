@@ -51,11 +51,12 @@ input[type=text]:focus{border-color:var(--accent)}
 .day-head{display:flex;align-items:center;gap:8px;padding:0 2px;margin-bottom:9px}
 .day-date-label{font-size:13px;font-weight:600;color:var(--text2)}
 .day-count{font-size:11px;color:var(--text3);background:var(--surface2);padding:2px 8px;border-radius:20px}
-.swipe-wrapper{position:relative;margin-bottom:8px;border-radius:var(--r-lg);overflow:hidden}
-.del-bg{position:absolute;right:0;top:0;bottom:0;width:80px;background:var(--red);display:flex;align-items:center;justify-content:center;border-radius:var(--r-lg)}
-.del-bg-txt{color:#fff;font-size:12px;font-weight:600}
-.entry-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);display:flex;align-items:stretch;overflow:hidden;position:relative;transition:transform .2s ease;will-change:transform;cursor:pointer}
-.entry-card.swiped{transform:translateX(-80px)}
+.swipe-wrapper{position:relative;margin-bottom:8px}
+.del-bg{position:absolute;right:0;top:0;bottom:0;width:88px;background:var(--red);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:0 var(--r-lg) var(--r-lg) 0;z-index:0}
+.del-bg-txt{color:#fff;font-size:11px;font-weight:600;margin-top:2px}
+.del-bg-icon{color:#fff;font-size:20px;line-height:1}
+.entry-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);display:flex;align-items:stretch;overflow:hidden;position:relative;z-index:1;transition:transform .25s ease;cursor:pointer}
+.entry-card.swiped{transform:translateX(-88px)}
 .entry-stripe{width:5px;flex-shrink:0}
 .stripe-sleep{background:var(--accent)}.stripe-meal{background:var(--blue)}.stripe-med{background:#9a7a3a}.stripe-episode{background:var(--red)}.stripe-note{background:var(--gray)}
 .entry-body{flex:1;min-width:0;padding:12px 0 12px 12px}
@@ -350,25 +351,38 @@ function closeAllSwipes(){
 }
 
 function initSwipe(card,id){
-  let startX=0,startY=0,dx=0,moved=false;
+  let x0=0,y0=0,dx=0,dir=null,wasSwiped=false;
   card.addEventListener('touchstart',e=>{
-    startX=e.touches[0].clientX;startY=e.touches[0].clientY;dx=0;moved=false;
-    if(swipeCurrent&&swipeCurrent!==card)closeAllSwipes();
+    x0=e.touches[0].clientX;y0=e.touches[0].clientY;dx=0;dir=null;
+    wasSwiped=card.classList.contains('swiped');
+    if(swipeCurrent&&swipeCurrent!==card){closeAllSwipes();}
   },{passive:true});
   card.addEventListener('touchmove',e=>{
-    dx=e.touches[0].clientX-startX;
-    const dy=e.touches[0].clientY-startY;
-    if(Math.abs(dy)>Math.abs(dx))return;
-    moved=true;
-    if(dx<0){card.style.transform='translateX('+Math.max(dx,-80)+'px)';}
-    else if(card.classList.contains('swiped')){card.style.transform='translateX('+Math.min(dx-80,0)+'px)';}
-  },{passive:true});
+    dx=e.touches[0].clientX-x0;
+    const dy=e.touches[0].clientY-y0;
+    if(!dir){if(Math.abs(dx)<4&&Math.abs(dy)<4)return;dir=Math.abs(dx)>Math.abs(dy)?'h':'v';}
+    if(dir!=='h')return;
+    e.preventDefault();
+    const base=wasSwiped?-88:0;
+    const tx=Math.min(0,Math.max(-88,base+dx));
+    card.style.transition='none';
+    card.style.transform='translateX('+tx+'px)';
+  },{passive:false});
   card.addEventListener('touchend',()=>{
+    card.style.transition='';
     card.style.transform='';
-    if(!moved&&!card.classList.contains('swiped')){editEntry(id);return;}
-    if(dx<-40){card.classList.add('swiped');swipeCurrent=card;}
-    else if(dx>20&&card.classList.contains('swiped')){card.classList.remove('swiped');swipeCurrent=null;}
-    else{card.classList.contains('swiped')?null:card.classList.remove('swiped');}
+    if(dir===null||dir==='v'){
+      if(!wasSwiped)editEntry(id);
+      else closeAllSwipes();
+      return;
+    }
+    if(wasSwiped){
+      if(dx>30){card.classList.remove('swiped');swipeCurrent=null;}
+      else card.classList.add('swiped');
+    }else{
+      if(dx<-40){card.classList.add('swiped');swipeCurrent=card;}
+      else card.classList.remove('swiped');
+    }
   });
 }
 
@@ -396,7 +410,7 @@ function renderLog(){
     return '<div class="day-block"><div class="day-head"><span class="day-date-label">'+label+'</span><span class="day-count">'+rows.length+'条</span></div>'+
     rows.map(e=>{
       const timeStr=e.tstart?(e.tend?e.tstart+' → '+e.tend:e.tstart):'';
-      return '<div class="swipe-wrapper"><div class="del-bg" onclick="deleteEntry('+e.id+')"><div class="del-bg-txt">删除</div></div>'+
+      return '<div class="swipe-wrapper"><div class="del-bg" onclick="deleteEntry('+e.id+')"><div class="del-bg-icon">✕</div><div class="del-bg-txt">删除</div></div>'+
       '<div class="entry-card" id="ec-'+e.id+'"><div class="entry-stripe '+TS[e.type]+'"></div><div class="entry-body"><div class="entry-top"><span class="badge '+TC[e.type]+'">'+TL[e.type]+'</span>'+(e.sev?'<span class="sev-tag '+SC[e.sev]+'">'+SL[e.sev]+'</span>':'')+(timeStr?'<span class="entry-time-txt">'+timeStr+'</span>':'')+'</div><div class="entry-detail'+(e.detail?'':' muted')+'">'+(e.detail?esc(e.detail):'无详情')+'</div></div><span class="entry-edit-icon">›</span></div></div>';
     }).join('')+'</div>';
   }).join('');
