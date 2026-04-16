@@ -112,14 +112,14 @@ input[type=text]:focus{border-color:var(--accent)}
 .picker-confirm{background:none;border:none;font-size:15px;color:var(--accent);font-weight:600;font-family:inherit;cursor:pointer;padding:4px 8px}
 .picker-columns{display:flex;overflow:hidden;height:220px;position:relative}
 .picker-columns::before,.picker-columns::after{content:'';position:absolute;left:0;right:0;height:88px;z-index:2;pointer-events:none}
-.picker-columns::before{top:0;background:linear-gradient(to bottom,var(--surface) 20%,rgba(255,255,255,0))}
-.picker-columns::after{bottom:0;background:linear-gradient(to top,var(--surface) 20%,rgba(255,255,255,0))}
-.picker-highlight{position:absolute;top:50%;left:0;right:0;height:44px;transform:translateY(-50%);border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--surface2);pointer-events:none;z-index:1}
+.picker-columns::before{top:0;background:linear-gradient(to bottom,#ffffff 0%,rgba(255,255,255,0) 100%)}
+.picker-columns::after{bottom:0;background:linear-gradient(to top,#ffffff 0%,rgba(255,255,255,0) 100%)}
+.picker-highlight{position:absolute;left:0;right:0;height:44px;top:88px;border-top:1.5px solid var(--accent);border-bottom:1.5px solid var(--accent);background:rgba(74,124,111,0.07);pointer-events:none;z-index:1}
 .picker-col-wrap{flex:1;display:flex;flex-direction:column}
-.picker-col-label{text-align:center;font-size:11px;color:var(--text3);padding:8px 0 0;letter-spacing:.06em;height:28px;display:flex;align-items:center;justify-content:center}
-.picker-col{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:66px 0}
+.picker-col-label{display:none}
+.picker-col{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:88px 0}
 .picker-col::-webkit-scrollbar{display:none}
-.picker-item{height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text2);scroll-snap-align:center;cursor:pointer;user-select:none}
+.picker-item{height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text2);scroll-snap-align:center;cursor:pointer;user-select:none;font-weight:400}
 .picker-sep{font-size:24px;color:var(--text3);display:flex;align-items:center;justify-content:center;width:24px;padding-top:94px;flex-shrink:0}
 </style>
 </head>
@@ -229,6 +229,7 @@ input[type=text]:focus{border-color:var(--accent)}
       <div class="picker-header-title" id="picker-title"></div>
       <button class="picker-confirm" onclick="closePicker(true)">确认</button>
     </div>
+    <div class="picker-labels" id="picker-labels" style="display:flex;padding:8px 0 4px;border-top:1px solid var(--border)"></div>
     <div class="picker-columns" id="picker-columns">
       <div class="picker-highlight"></div>
     </div>
@@ -249,10 +250,6 @@ let draftTimer=null,pickerMode='',pickerCols=[];
 function buildPickerCol(items,current,label){
   const wrap=document.createElement('div');
   wrap.className='picker-col-wrap';
-  const lbl=document.createElement('div');
-  lbl.className='picker-col-label';
-  lbl.textContent=label||'';
-  wrap.appendChild(lbl);
   const col=document.createElement('div');
   col.className='picker-col';
   items.forEach(item=>{
@@ -266,12 +263,12 @@ function buildPickerCol(items,current,label){
   col.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(()=>{
     const idx=Math.round(col.scrollTop/44);
     col.scrollTo({top:Math.max(0,idx)*44,behavior:'smooth'});
-  },100);},{passive:true});
+  },80);},{passive:true});
   setTimeout(()=>{
-    const idx=items.findIndex(i=>i.value===current);
-    col.scrollTop=Math.max(0,idx)*44;
-  },50);
-  return {wrap,col,items};
+    const idx=Math.max(0,items.findIndex(i=>i.value===current));
+    col.scrollTop=idx*44;
+  },60);
+  return {wrap,col,items,label};
 }
 
 function getColVal(col,items){
@@ -292,9 +289,9 @@ function openPicker(mode){
     const months=[];for(let m=1;m<=12;m++)months.push({value:String(m).padStart(2,'0'),label:m+'月'});
     const dc=new Date(cy,cm,0).getDate();
     const days=[];for(let d=1;d<=dc;d++)days.push({value:String(d).padStart(2,'0'),label:d+'日'});
-    const yO=buildPickerCol(years,String(cy),'年');
-    const mO=buildPickerCol(months,String(cm).padStart(2,'0'),'月');
-    const dO=buildPickerCol(days,String(cd).padStart(2,'0'),'日');
+    const yO=buildPickerCol(years,String(cy),'年');yO.label='年';
+    const mO=buildPickerCol(months,String(cm).padStart(2,'0'),'月');mO.label='月';
+    const dO=buildPickerCol(days,String(cd).padStart(2,'0'),'日');dO.label='日';
     pickerCols=[yO,mO,dO];
     container.appendChild(yO.wrap);container.appendChild(mO.wrap);container.appendChild(dO.wrap);
   }else{
@@ -304,11 +301,22 @@ function openPicker(mode){
     const mins=[{value:'',label:'--'}];
     for(let m=0;m<60;m+=5)mins.push({value:String(m).padStart(2,'0'),label:String(m).padStart(2,'0')});
     const sep=document.createElement('div');sep.className='picker-sep';sep.textContent=':';
-    const hO=buildPickerCol(hours,selHour||'','时');
-    const mO=buildPickerCol(mins,selMin||'','分');
-    pickerCols=[hO,mO];
-    container.appendChild(hO.wrap);container.appendChild(sep);container.appendChild(mO.wrap);
+    const hO=buildPickerCol(hours,selHour||'','时');hO.label='时';
+    const mO2=buildPickerCol(mins,selMin||'','分');mO2.label='分';
+    pickerCols=[hO,mO2];
+    container.appendChild(hO.wrap);container.appendChild(sep);container.appendChild(mO2.wrap);
   }
+  // build label row
+  const labelsRow=document.getElementById('picker-labels');
+  labelsRow.innerHTML='';
+  const allCols=[...pickerCols];
+  allCols.forEach((pc,i)=>{
+    const lbl=document.createElement('div');
+    lbl.style.cssText='flex:1;text-align:center;font-size:12px;font-weight:600;color:var(--accent);letter-spacing:.06em;text-transform:uppercase';
+    lbl.textContent=pc.label||'';
+    labelsRow.appendChild(lbl);
+    if(mode==='time'&&i===0){const sp=document.createElement('div');sp.style.cssText='width:24px';labelsRow.appendChild(sp);}
+  });
   document.getElementById('picker-overlay').classList.add('open');
 }
 
